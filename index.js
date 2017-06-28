@@ -33,6 +33,20 @@ EntryService.prototype.add = function(userId, title, date, callback) {
     this.dynamodb.putItem(params, callback);
 };
 
+EntryService.prototype.find = function(userId, title, callback) {
+    var tableName = this.tableName;
+    var params = {
+        TableName: tableName,
+        KeyConditionExpression: 'UserId = :pkey and begins_with(TitleWithDate, :skeyPrefix)',
+        ExpressionAttributeValues: {
+            ':pkey': { S: userId.toString() },
+            ':skeyPrefix': { S: title }
+        }
+    };
+    console.log('%j', params);
+    this.dynamodb.query(params, callback);
+}
+
 var states = {
     ADD_MODE: '_ADD_MODE',
     REVIEW_MODE: '_REVIEW_MODE'
@@ -135,7 +149,18 @@ var stateHandlers = {
                 'movie': movie,
             }
             console.log('parsed message %j', logMsg);
-            this.emit(':tell', 'I\'ll let you know more about ' + movie + ' very soon.');
+
+            var userId = this.event.session.user.userId;
+            (new EntryService()).find(userId, movie, (err, data) => {
+                console.log('query data callback:');
+                if (err) {
+                    console.log(err, err.stack);
+                    this.emit(':tell', 'Sorry, I wasn\'t able to find the information.');
+                } else {
+                    console.log(data);
+                    this.emit(':tell', 'OK ' + data.Count + ' items for ' + movie + ' was found.');
+                }
+            });
         },
 
         'ReviewHistoryIntent': function() {
