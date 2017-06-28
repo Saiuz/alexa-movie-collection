@@ -1,12 +1,42 @@
 "use strict";
 
+// Configurations
+var SESSION_TABLE = 'AlexaMovieHistorySessions';
+var MOVIE_HISTORY_TABLE = 'WatchedMovies';
+
 var Alexa = require("alexa-sdk");
+var AWS = require("aws-sdk");
 var logHelper = require('./logHelper');
+
+var EntryService = function() {
+    console.log('Initating new EntryService instance.');
+    this.dynamodb = new AWS.DynamoDB({apiVersion: '2012-08-10'});
+    this.tableName = MOVIE_HISTORY_TABLE;
+    console.log('EntryService initialized.');
+};
+
+EntryService.prototype.add = function(userId, title, date, callback) {
+    // TODO: Handle other ISO-8601 date format.
+    // See: https://goo.gl/gk2RYJ#date
+    var tableName = this.tableName;
+    var params = {
+        TableName: tableName,
+        Item: {
+            UserId: { S: userId.toString() },
+            TitleWithDate: { S: title + date },
+            Title: { S: title },
+            WatchedDate: { S: date },
+            createdOn: { N: (new Date().getTime()).toString() }
+        }
+    };
+    console.log("%j", params);
+    this.dynamodb.putItem(params, callback);
+};
 
 var states = {
     ADD_MODE: "_ADD_MODE",
     REVIEW_MODE: "_REVIEW_MODE"
-}
+};
 
 var handlers = {
     "NewSession": function() {
@@ -52,18 +82,33 @@ var stateHandlers = {
     addModeIntentHandlers : Alexa.CreateStateHandler(states.ADD_MODE, {
 
         'AddWatchedMovieIntent': function() {
-            console.log(this.event.request);
+            console.log('Enter AddWatchedMovieIntent handler');
             var filledSlots = delegateSlotCollection.call(this);
+            console.log(filledSlots);
+            console.log('Start adding process...');
             var movie = this.event.request.intent.slots.movie.value;
             var date = this.event.request.intent.slots.date.value;
-            var message = "OK, you have watched " + movie + " on " + date;
             var logMsg = {
                 "eventType": this.event.request.eventType,
                 "movie": movie,
                 "date": date
             }
-            console.log("%j", logMsg);
-            this.emit(":tell", message);
+            console.log("parsed message %j", logMsg);
+
+            var userId = this.event.session.user.userId;
+            console.log("userId: " + userId);
+
+            var message = "OK, you have watched " + movie + " on " + date;
+            (new EntryService()).add(userId, movie, date, (err, data) => {
+                console.log('putItem callback:')
+                if (err) {
+                    console.log(err, err.stack);
+                    this.emit(':tell', 'Sorry, I couldn\'t save it to your movie history. Something went wrong.');
+                } else {
+                    console.log(data);
+                    this.emit(":tell", message);
+                }
+            });
         },
     }),
 
@@ -85,7 +130,7 @@ exports.handler = function(event, context, callback) {
 
 function delegateSlotCollection(){
     console.log("in delegateSlotCollection");
-    console.log("current dialogState: "+this.event.request.dialogState);
+    console.log("current dialogState: " + this.event.request.dialogState);
     if (this.event.request.dialogState === "STARTED") {
       console.log("in Beginning");
       var updatedIntent=this.event.request.intent;
