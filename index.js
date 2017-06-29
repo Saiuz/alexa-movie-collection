@@ -47,6 +47,19 @@ EntryService.prototype.find = function(userId, title, callback) {
     this.dynamodb.query(params, callback);
 }
 
+EntryService.prototype.getAll = function(userId, callback) {
+    var tableName = this.tableName;
+    var params = {
+        TableName: tableName,
+        KeyConditionExpression: 'UserId = :pkey',
+        ExpressionAttributeValues: {
+            ':pkey': { S: userId.toString() }
+        }
+    };
+    console.log('%j', params);
+    this.dynamodb.query(params, callback);
+}
+
 var states = {
     ADD_MODE: '_ADD_MODE',
     REVIEW_MODE: '_REVIEW_MODE'
@@ -82,7 +95,7 @@ var handlers = {
 
     'LaunchReview': function() {
         console.log('Prompting the user to provide review choices.');
-        this.emit(':ask', 'OK! You can review an overall summary of your movie history or inquiry your watch history of one movie. Tell me what do you want to know.');
+        this.emit(':ask', 'OK! Do you want to know the total number of movies you\'ve watched<break time="300ms"/>, or inquiry one particular movie?');
     },
 
     'EndSession' : function (message) {
@@ -158,14 +171,51 @@ var stateHandlers = {
                     this.emit(':tell', 'Sorry, I wasn\'t able to find the information.');
                 } else {
                     console.log(data);
-                    this.emit(':tell', 'OK ' + data.Count + ' items for ' + movie + ' was found.');
+                    console.log(data.Items);
+
+                    var historyMessage;
+                    if (data.Count == 0) {
+                        historyMessage = 'You haven\'t watched <emphasis level="moderate">' + movie + '</emphasis> yet.';
+                    } else if (data.Count == 1) {
+                        var watchDate = itemToDateMessage(data.Items[0]);
+                        historyMessage = 'You watched <emphasis level="moderate">' + movie + '</emphasis> on ' + watchDate + '.';
+                    } else {
+                        var dates = data.Items.map(itemToDateMessage);
+                        console.log(dates);
+                        var lastDate = dates.pop();
+                        console.log(dates);
+                        console.log(lastDate);
+                        var datesMessage = dates.join('<break time="500ms"/>, ') + '<break time="500ms"/> and ' + lastDate;
+                        console.log(datesMessage);
+                        historyMessage = 'You have watched ' + movie + ' ' + data.Count + ' times, which were on ' + datesMessage + '.';
+                    }
+                    console.log(historyMessage);
+                    this.emit(':tell', historyMessage);
                 }
             });
         },
 
-        'ReviewHistoryIntent': function() {
-            console.log('Handle ReviewHistoryIntent');
-            this.emit(':tell', 'I can give you the summary only until Bowen has finished his coding.');
+        'TotalNumberIntent': function() {
+            console.log('Handle TotalNumberIntent');
+            var userId = this.event.session.user.userId;
+            (new EntryService()).getAll(userId, (err, data) => {
+                console.log('get all data callback:');
+                if (err) {
+                    console.log(err, err.stack);
+                    this.emit(':tell', 'Sorry, I wasn\'t able to find the information.');
+                } else {
+                    console.log(data);
+                    console.log(data.Items);
+
+                    if (data.Count == 0) {
+                        this.emit(':tell', 'You haven\'t told me about any movie you\'ve watched yet.');
+                    } else if (data.Count == 1) {
+                        this.emit(':tell', 'You have watched only one movie.');
+                    } else {
+                        this.emit(':tell', 'You have watched ' + data.Count + ' movies.');
+                    }
+                }
+            });
         },
 
         'Unhandled': function () {
@@ -208,4 +258,8 @@ function delegateSlotCollection(){
       // so call your normal intent handler.
       return this.event.request.intent;
     }
+}
+
+function itemToDateMessage(item) {
+    return '<say-as interpret-as="date">' + item['WatchedDate']['S'] + '</say-as>';
 }
