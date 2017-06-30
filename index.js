@@ -60,47 +60,142 @@ EntryService.prototype.getAll = function(userId, callback) {
     this.dynamodb.query(params, callback);
 }
 
-var states = {
-    ADD_MODE: '_ADD_MODE',
-    REVIEW_MODE: '_REVIEW_MODE'
-};
-
 var handlers = {
     'NewSession': function() {
         logHelper.logSessionStarted(this.event.session);
-        this.emit(':ask', 'Do you want to add a new movie, or review your movie history?');
-    },
 
-    'MainMenuIntent': function() {
-        console.log(this.event.request);
-        var filledSlots = delegateSlotCollection.call(this);
-        console.log(this.event.request.intent.slots.choice.value);
-        var choice = this.event.request.intent.slots.choice.value;
-
-        if (choice === 'review') {
-            console.log('Entering review mode ...')
-            this.handler.state = states.REVIEW_MODE;
-            this.emit('LaunchReview');
+        if (this.event.request.type === 'LaunchRequest') {
+            logHelper.logLaunchRequest(this.event.session, this.event.request);
+            this.emit('welcome');
+        } else if (this.event.request.type === 'IntentRequest') {
+            logHelper.logReceiveIntent(this.event.session, this.event.request);
+            var intentName = this.event.request.intent.name;
+            this.emit(intentName);
         } else {
-            console.log('Entering add mode ...')
-            this.handler.state = states.ADD_MODE;
-            this.emit('LaunchAdd');
+            console.log('Unexpected request : ' + this.event.request.type);
         }
     },
 
-    'LaunchAdd': function() {
-        console.log('Prompting the user to provide movie information.')
-        this.emit(':ask', 'Tell me about the movie you watched.');
+    'welcome': function() {
+        console.log('Preparing welcome message');
+        var welcomeMessage = 'Welcome to movie history.';
+        var helpMessageForAddNew = 'You can add a new movie by telling me the title and date. For example, you can say:"add wonder woman on Jun 20th".';
+        var helpMessageForReview = 'You can review the watch date for a movie by asking me about the title. For example, you can say:"when did I watch wonder woman".';
+        var helpMessageForTotalNumber = 'And lastly, you can ask for the total number you have watched the movies by saying "total number".';
+        this.emit(':ask', [welcomeMessage, helpMessageForAddNew, helpMessageForReview, helpMessageForTotalNumber].join(' '));
     },
 
-    'LaunchReview': function() {
-        console.log('Prompting the user to provide review choices.');
-        this.emit(':ask', 'OK! Do you want to know the total number of movies you\'ve watched<break time="300ms"/>, or inquiry one particular movie?');
+    'AddWatchedMovieIntent': function() {
+        console.log('Enter AddWatchedMovieIntent handler');
+        var filledSlots = delegateSlotCollection.call(this);
+        console.log(filledSlots);
+        console.log('Start adding process...');
+        var movie = this.event.request.intent.slots.movie.value;
+        var date = this.event.request.intent.slots.date.value;
+        var logMsg = {
+            'eventType': this.event.request.eventType,
+            'movie': movie,
+            'date': date
+        }
+        console.log('parsed message %j', logMsg);
+
+        var userId = this.event.session.user.userId;
+        console.log('userId: ' + userId);
+
+        var message = 'OK, you have watched ' + movie + ' on ' + date;
+        (new EntryService()).add(userId, movie, date, (err, data) => {
+            console.log('putItem callback:')
+            if (err) {
+                console.log(err, err.stack);
+                this.emit(':tell', 'Sorry, I couldn\'t save it to your movie history. Something went wrong.');
+            } else {
+                console.log(data);
+                this.emit(':tell', message);
+            }
+        });
+    },
+
+    'InquiryMovieIntent': function() {
+        console.log('Handle InquiryMovieIntent');
+        var filledSlots = delegateSlotCollection.call(this);
+        console.log(filledSlots);
+        console.log('Start inquiry process...');
+        var movie = this.event.request.intent.slots.movie.value;
+        var logMsg = {
+            'eventType': this.event.request.eventType,
+            'movie': movie,
+        }
+        console.log('parsed message %j', logMsg);
+
+        var userId = this.event.session.user.userId;
+        (new EntryService()).find(userId, movie, (err, data) => {
+            console.log('query data callback:');
+            if (err) {
+                console.log(err, err.stack);
+                this.emit(':tell', 'Sorry, I wasn\'t able to find the information.');
+            } else {
+                console.log(data);
+                console.log(data.Items);
+
+                var historyMessage;
+                if (data.Count == 0) {
+                    historyMessage = 'You haven\'t watched <emphasis level="moderate">' + movie + '</emphasis> yet.';
+                } else if (data.Count == 1) {
+                    var watchDate = itemToDateMessage(data.Items[0]);
+                    historyMessage = 'You watched <emphasis level="moderate">' + movie + '</emphasis> on ' + watchDate + '.';
+                } else {
+                    var dates = data.Items.map(itemToDateMessage);
+                    console.log(dates);
+                    var lastDate = dates.pop();
+                    console.log(dates);
+                    console.log(lastDate);
+                    var datesMessage = dates.join('<break time="500ms"/>, ') + '<break time="500ms"/> and ' + lastDate;
+                    console.log(datesMessage);
+                    historyMessage = 'You have watched ' + movie + ' ' + data.Count + ' times, which were on ' + datesMessage + '.';
+                }
+                console.log(historyMessage);
+                this.emit(':tell', historyMessage);
+            }
+        });
+    },
+
+    'TotalNumberIntent': function() {
+        console.log('Handle TotalNumberIntent');
+        var userId = this.event.session.user.userId;
+        (new EntryService()).getAll(userId, (err, data) => {
+            console.log('get all data callback:');
+            if (err) {
+                console.log(err, err.stack);
+                this.emit(':tell', 'Sorry, I wasn\'t able to find the information.');
+            } else {
+                console.log(data);
+                console.log(data.Items);
+
+                if (data.Count == 0) {
+                    this.emit(':tell', 'You haven\'t told me about any movie you\'ve watched yet.');
+                } else if (data.Count == 1) {
+                    this.emit(':tell', 'You have watched only one movie.');
+                } else {
+                    this.emit(':tell', 'You have watched ' + data.Count + ' movies.');
+                }
+            }
+        });
     },
 
     'EndSession' : function (message) {
         console.log('Session Ended with message:' + message);
-        this.emit(':saveState', true);
+        // this.emit(':saveState', true);
+    },
+
+    'AMAZON.HelpIntent': function() {
+        console.log('Handling AMAZON.HelpIntent.');
+        this.emit('welcome');
+    },
+    
+    'AMAZON.StopIntent': function () {
+         console.log('Handling AMAZON.HelpIntent.');
+         this.handler.state = '';
+         this.emit(':tell', 'Goodbye!');
     },
 
     'Unhandled': function () {
@@ -110,130 +205,10 @@ var handlers = {
     }
 };
 
-var stateHandlers = {
-    addModeIntentHandlers : Alexa.CreateStateHandler(states.ADD_MODE, {
-
-        'AddWatchedMovieIntent': function() {
-            console.log('Enter AddWatchedMovieIntent handler');
-            var filledSlots = delegateSlotCollection.call(this);
-            console.log(filledSlots);
-            console.log('Start adding process...');
-            var movie = this.event.request.intent.slots.movie.value;
-            var date = this.event.request.intent.slots.date.value;
-            var logMsg = {
-                'eventType': this.event.request.eventType,
-                'movie': movie,
-                'date': date
-            }
-            console.log('parsed message %j', logMsg);
-
-            var userId = this.event.session.user.userId;
-            console.log('userId: ' + userId);
-
-            var message = 'OK, you have watched ' + movie + ' on ' + date;
-            (new EntryService()).add(userId, movie, date, (err, data) => {
-                console.log('putItem callback:')
-                if (err) {
-                    console.log(err, err.stack);
-                    this.emit(':tell', 'Sorry, I couldn\'t save it to your movie history. Something went wrong.');
-                } else {
-                    console.log(data);
-                    this.emit(':tell', message);
-                }
-            });
-        },
-
-        'Unhandled': function() {
-            console.log('unhandled in add mode');
-            var speechOutput = 'I don\'t kown what to add. Please start over again.';
-            this.emit(':tell', speechOutput, speechOutput);
-        }
-    }),
-
-    reviewModeIntentHandlers : Alexa.CreateStateHandler(states.REVIEW_MODE, {
-        'InquiryMovieIntent': function() {
-            console.log('Handle InquiryMovieIntent');
-            var filledSlots = delegateSlotCollection.call(this);
-            console.log(filledSlots);
-            console.log('Start inquiry process...');
-            var movie = this.event.request.intent.slots.movie.value;
-            var logMsg = {
-                'eventType': this.event.request.eventType,
-                'movie': movie,
-            }
-            console.log('parsed message %j', logMsg);
-
-            var userId = this.event.session.user.userId;
-            (new EntryService()).find(userId, movie, (err, data) => {
-                console.log('query data callback:');
-                if (err) {
-                    console.log(err, err.stack);
-                    this.emit(':tell', 'Sorry, I wasn\'t able to find the information.');
-                } else {
-                    console.log(data);
-                    console.log(data.Items);
-
-                    var historyMessage;
-                    if (data.Count == 0) {
-                        historyMessage = 'You haven\'t watched <emphasis level="moderate">' + movie + '</emphasis> yet.';
-                    } else if (data.Count == 1) {
-                        var watchDate = itemToDateMessage(data.Items[0]);
-                        historyMessage = 'You watched <emphasis level="moderate">' + movie + '</emphasis> on ' + watchDate + '.';
-                    } else {
-                        var dates = data.Items.map(itemToDateMessage);
-                        console.log(dates);
-                        var lastDate = dates.pop();
-                        console.log(dates);
-                        console.log(lastDate);
-                        var datesMessage = dates.join('<break time="500ms"/>, ') + '<break time="500ms"/> and ' + lastDate;
-                        console.log(datesMessage);
-                        historyMessage = 'You have watched ' + movie + ' ' + data.Count + ' times, which were on ' + datesMessage + '.';
-                    }
-                    console.log(historyMessage);
-                    this.emit(':tell', historyMessage);
-                }
-            });
-        },
-
-        'TotalNumberIntent': function() {
-            console.log('Handle TotalNumberIntent');
-            var userId = this.event.session.user.userId;
-            (new EntryService()).getAll(userId, (err, data) => {
-                console.log('get all data callback:');
-                if (err) {
-                    console.log(err, err.stack);
-                    this.emit(':tell', 'Sorry, I wasn\'t able to find the information.');
-                } else {
-                    console.log(data);
-                    console.log(data.Items);
-
-                    if (data.Count == 0) {
-                        this.emit(':tell', 'You haven\'t told me about any movie you\'ve watched yet.');
-                    } else if (data.Count == 1) {
-                        this.emit(':tell', 'You have watched only one movie.');
-                    } else {
-                        this.emit(':tell', 'You have watched ' + data.Count + ' movies.');
-                    }
-                }
-            });
-        },
-
-        'Unhandled': function () {
-            console.log('unhandled in review mode');
-            var speechOutput = 'I don\'t kown what to do. Please start over again.';
-            this.emit(':tell', speechOutput, speechOutput);
-        }
-    })
-};
-
-
 exports.handler = function(event, context, callback) {
     var alexa = Alexa.handler(event, context);
     alexa.appId = 'amzn1.ask.skill.4d4ca562-4f28-41b1-8547-d88dd2b26716';
-    alexa.registerHandlers(
-        handlers,
-        stateHandlers.addModeIntentHandlers,
-        stateHandlers.reviewModeIntentHandlers);
+    alexa.registerHandlers(handlers);
     alexa.execute();
 };
 
