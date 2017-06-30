@@ -77,12 +77,9 @@ var handlers = {
     },
 
     'welcome': function() {
-        console.log('Preparing welcome message');
-        var welcomeMessage = 'Welcome to movie history.';
-        var helpMessageForAddNew = 'You can add a new movie by telling me the title and date. For example, you can say:"add wonder woman on Jun 20th".';
-        var helpMessageForReview = 'You can review the watch date for a movie by asking me about the title. For example, you can say:"when did I watch wonder woman".';
-        var helpMessageForTotalNumber = 'And lastly, you can ask for the total number you have watched the movies by saying "total number".';
-        this.emit(':ask', [welcomeMessage, helpMessageForAddNew, helpMessageForReview, helpMessageForTotalNumber].join(' '));
+        var welcomeMessage = 'Welcome to movie history. ' + getCommandHelpMessage();
+        console.log('Preparing welcome message: ' + welcomeMessage);
+        this.emit(':ask', welcomeMessage);
     },
 
     'AddWatchedMovieIntent': function() {
@@ -184,16 +181,22 @@ var handlers = {
 
     'EndSession' : function (message) {
         console.log('Session Ended with message:' + message);
-        // this.emit(':saveState', true);
     },
 
     'AMAZON.HelpIntent': function() {
         console.log('Handling AMAZON.HelpIntent.');
-        this.emit('welcome');
+        var helpMessage = 'There are three things you can do. ' + getCommandHelpMessage();
+        console.log('Preparing help message: ' + helpMessage);
+        this.emit(':ask', helpMessage);
+    },
+
+    'AMAZON.CancelIntent': function() {
+        console.log('Handling AMAZON.CancelIntent');
+         this.emit(':tell', 'Cancelled. Goodbye!');
     },
     
-    'AMAZON.StopIntent': function () {
-         console.log('Handling AMAZON.HelpIntent.');
+    'AMAZON.StopIntent': function() {
+         console.log('Handling AMAZON.StopIntent.');
          this.handler.state = '';
          this.emit(':tell', 'Goodbye!');
     },
@@ -237,4 +240,11 @@ function delegateSlotCollection(){
 
 function itemToDateMessage(item) {
     return '<say-as interpret-as="date">' + item['WatchedDate']['S'] + '</say-as>';
+}
+
+function getCommandHelpMessage() {
+    var helpMessageForAddNew = 'You can add a new movie by telling me the title and date. For example, you can say:"add wonder woman on Jun 20th".';
+    var helpMessageForReview = 'You can review the watch date for a movie by asking me about the title. For example, you can say:"when did I watch wonder woman".';
+    var helpMessageForTotalNumber = 'And lastly, you can ask for the total number you have watched the movies by saying "total number".';
+    return [helpMessageForAddNew, helpMessageForReview, helpMessageForTotalNumber].join(' ');
 }
