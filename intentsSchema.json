@@ -1,0 +1,171 @@
+{
+  "intents": [
+    {
+      "name": "AddWatchedMovieIntent",
+      "samples": [
+        "I watched {movie} on {date} ",
+        "I watched {movie}",
+        "Add {movie} that I watched on {date}",
+        "Add a record for {movie}",
+        "Add the {movie} that I watched on {date}",
+        "Add {movie} watched on {date}",
+        "Add the {movie} watched on {date}",
+        "Add a record that I watched {movie} on {date}"
+      ],
+      "slots": [
+        {
+          "name": "movie",
+          "type": "AMAZON.Movie",
+          "samples": [
+            "{movie}",
+            "I watched {movie}",
+            "I watched {movie} on {date}"
+          ]
+        },
+        {
+          "name": "date",
+          "type": "AMAZON.DATE",
+          "samples": [
+            "on {date}",
+            "{date}"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AMAZON.CancelIntent",
+      "samples": []
+    },
+    {
+      "name": "AMAZON.HelpIntent",
+      "samples": []
+    },
+    {
+      "name": "AMAZON.StopIntent",
+      "samples": []
+    },
+    {
+      "name": "InquiryMovieIntent",
+      "samples": [
+        "How many times did I watch {movie}",
+        "When did I watch {movie}",
+        "Have I watched {movie}",
+        "Tell me the watch history of {movie}",
+        "Find {movie}",
+        "Inquiry {movie}",
+        "for when did I watch {movie}"
+      ],
+      "slots": [
+        {
+          "name": "movie",
+          "type": "AMAZON.Movie",
+          "samples": [
+            "{movie}"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "TotalNumberIntent",
+      "samples": [
+        "Give me the total number",
+        "I want to know the total number",
+        "Tell me the total number",
+        "Total number",
+        "Tell me the number",
+        "tell me the times I watch movies",
+        "tell me the total number I watch movies"
+      ],
+      "slots": []
+    }
+  ],
+  "prompts": [
+    {
+      "id": "Elicit.Intent-AddWatchedMovieIntent.IntentSlot-movie",
+      "promptVersion": "1.0",
+      "definitionVersion": "1.0",
+      "variations": [
+        {
+          "type": "PlainText",
+          "value": "Which movie?"
+        }
+      ]
+    },
+    {
+      "id": "Elicit.Intent-AddWatchedMovieIntent.IntentSlot-date",
+      "promptVersion": "1.0",
+      "definitionVersion": "1.0",
+      "variations": [
+        {
+          "type": "PlainText",
+          "value": "When did you watch it?"
+        },
+        {
+          "type": "PlainText",
+          "value": "When did you watch the movie?"
+        }
+      ]
+    },
+    {
+      "id": "Elicit.Intent-InquiryMovieIntent.IntentSlot-movie",
+      "promptVersion": "1.0",
+      "definitionVersion": "1.0",
+      "variations": [
+        {
+          "type": "PlainText",
+          "value": "Please tell me the movie name."
+        },
+        {
+          "type": "PlainText",
+          "value": "Please let me know the name of the movie"
+        }
+      ]
+    }
+  ],
+  "dialog": {
+    "version": "1.0",
+    "intents": [
+      {
+        "name": "AddWatchedMovieIntent",
+        "confirmationRequired": false,
+        "prompts": {},
+        "slots": [
+          {
+            "name": "movie",
+            "type": "AMAZON.Movie",
+            "elicitationRequired": true,
+            "confirmationRequired": false,
+            "prompts": {
+              "elicit": "Elicit.Intent-AddWatchedMovieIntent.IntentSlot-movie"
+            }
+          },
+          {
+            "name": "date",
+            "type": "AMAZON.DATE",
+            "elicitationRequired": true,
+            "confirmationRequired": false,
+            "prompts": {
+              "elicit": "Elicit.Intent-AddWatchedMovieIntent.IntentSlot-date"
+            }
+          }
+        ]
+      },
+      {
+        "name": "InquiryMovieIntent",
+        "confirmationRequired": false,
+        "prompts": {},
+        "slots": [
+          {
+            "name": "movie",
+            "type": "AMAZON.Movie",
+            "elicitationRequired": true,
+            "confirmationRequired": false,
+            "prompts": {
+              "elicit": "Elicit.Intent-InquiryMovieIntent.IntentSlot-movie"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
