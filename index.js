@@ -243,8 +243,8 @@ function itemToDateMessage(item) {
 }
 
 function getCommandHelpMessage() {
-    var helpMessageForAddNew = 'You can add a new movie by telling me the title and date. For example, you can say:"add wonder woman on Jun 20th".';
-    var helpMessageForReview = 'You can review the watch date for a movie by asking me about the title. For example, you can say:"when did I watch wonder woman".';
-    var helpMessageForTotalNumber = 'And lastly, you can ask for the total number you have watched the movies by saying "total number".';
+    var helpMessageForAddNew = 'You can add a new movie by telling me the title and date. For example, you can say: "Add Wonder Woman watched on Jun 20th".';
+    var helpMessageForReview = 'You can review the watch date for a movie by asking me about the title. For example, you can say: "When did I watch Wonder Woman".';
+    var helpMessageForTotalNumber = 'And lastly, you can ask for the total number you have watched the movies by saying "Total number".';
     return [helpMessageForAddNew, helpMessageForReview, helpMessageForTotalNumber].join(' ');
 }
